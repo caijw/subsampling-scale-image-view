@@ -1260,11 +1260,12 @@ public class SubsamplingScaleImageView extends View {
         }
 
         if (fullImageSampleSize == 1 && sRegion == null && sWidth() < maxTileDimensions.x && sHeight() < maxTileDimensions.y) {
-
+            // note(kingwei): 无需采样，加载整个图片的 bitmap
             // Whole image is required at native resolution, and is smaller than the canvas max bitmap size.
             // Use BitmapDecoder for better image support.
             decoder.recycle();
             decoder = null;
+            // todo(kingwei): BitmapLoadTask
             BitmapLoadTask task = new BitmapLoadTask(this, getContext(), bitmapDecoderFactory, uri, false);
             execute(task);
 
@@ -1368,6 +1369,7 @@ public class SubsamplingScaleImageView extends View {
      */
     private int calculateInSampleSize(float scale) {
         if (minimumTileDpi > 0) {
+            // TODO(kingwei): 修正 scale ？
             DisplayMetrics metrics = getResources().getDisplayMetrics();
             float averageDpi = (metrics.xdpi + metrics.ydpi)/2;
             scale = (minimumTileDpi/averageDpi) * scale;
@@ -1391,6 +1393,7 @@ public class SubsamplingScaleImageView extends View {
             // Choose the smallest ratio as inSampleSize value, this will guarantee
             // a final image with both dimensions larger than or equal to the
             // requested height and width.
+            // note(kingwei): 选择采样率更小的，确保图片精度
             inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
         }
 
