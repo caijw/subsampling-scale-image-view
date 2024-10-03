@@ -1260,12 +1260,12 @@ public class SubsamplingScaleImageView extends View {
         }
 
         if (fullImageSampleSize == 1 && sRegion == null && sWidth() < maxTileDimensions.x && sHeight() < maxTileDimensions.y) {
-            // note(kingwei): 无需采样，加载整个图片的 bitmap
+            // kingwei: 无需采样，加载整个图片的 bitmap
             // Whole image is required at native resolution, and is smaller than the canvas max bitmap size.
             // Use BitmapDecoder for better image support.
             decoder.recycle();
             decoder = null;
-            // todo(kingwei): BitmapLoadTask
+            // kingwei: BitmapLoadTask
             BitmapLoadTask task = new BitmapLoadTask(this, getContext(), bitmapDecoderFactory, uri, false);
             execute(task);
 
@@ -1369,7 +1369,7 @@ public class SubsamplingScaleImageView extends View {
      */
     private int calculateInSampleSize(float scale) {
         if (minimumTileDpi > 0) {
-            // TODO(kingwei): 修正 scale ？
+            // kingwei: 修正 scale ？
             DisplayMetrics metrics = getResources().getDisplayMetrics();
             float averageDpi = (metrics.xdpi + metrics.ydpi)/2;
             scale = (minimumTileDpi/averageDpi) * scale;
@@ -1393,7 +1393,7 @@ public class SubsamplingScaleImageView extends View {
             // Choose the smallest ratio as inSampleSize value, this will guarantee
             // a final image with both dimensions larger than or equal to the
             // requested height and width.
-            // note(kingwei): 选择采样率更小的，确保图片精度
+            // kingwei: 选择采样率更小的，确保图片精度
             inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
         }
 
@@ -1484,6 +1484,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Once source image and view dimensions are known, creates a map of sample size to tile grid.
      */
+    // kingwei: 对原图片进行切块。 确保切块后的大小是否合适
     private void initialiseTileMap(Point maxTileDimensions) {
         debug("initialiseTileMap maxTileDimensions=%dx%d", maxTileDimensions.x, maxTileDimensions.y);
         this.tileMap = new LinkedHashMap<>();
@@ -1495,6 +1496,7 @@ public class SubsamplingScaleImageView extends View {
             int sTileHeight = sHeight()/yTiles;
             int subTileWidth = sTileWidth/sampleSize;
             int subTileHeight = sTileHeight/sampleSize;
+            // kingwei: 切块后的大小太大，需要再一次缩小
             while (subTileWidth + xTiles + 1 > maxTileDimensions.x || (subTileWidth > getWidth() * 1.25 && sampleSize < fullImageSampleSize)) {
                 xTiles += 1;
                 sTileWidth = sWidth()/xTiles;
@@ -1628,6 +1630,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Async task used to load images without blocking the UI thread.
      */
+    // kingwei: what is AsyncTask
     private static class TileLoadTask extends AsyncTask<Void, Void, Bitmap> {
         private final WeakReference<SubsamplingScaleImageView> viewRef;
         private final WeakReference<ImageRegionDecoder> decoderRef;
@@ -1696,6 +1699,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Called by worker task when a tile has loaded. Redraws the view.
      */
+    // todo kingwei: 切片 采样率下的 bitmap 采样率解码完成
     private synchronized void onTileLoaded() {
         debug("onTileLoaded");
         checkReady();
