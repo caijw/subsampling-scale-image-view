@@ -1044,6 +1044,7 @@ public class SubsamplingScaleImageView extends View {
                 }
             }
 
+            // kingwei: 渲染切片
             // Render all loaded tiles. LinkedHashMap used for bottom up rendering - lower res tiles underneath.
             for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
                 if (tileMapEntry.getKey() == sampleSize || hasMissingTiles) {
@@ -1306,13 +1307,16 @@ public class SubsamplingScaleImageView extends View {
                     }
                 }
                 if (tile.sampleSize == sampleSize) {
+
                     if (tileVisible(tile)) {
+                        // kingwei: 如果是在屏的切片，但是 bitmao 还没有加载，需要加载
                         tile.visible = true;
                         if (!tile.loading && tile.bitmap == null && load) {
                             TileLoadTask task = new TileLoadTask(this, decoder, tile);
                             execute(task);
                         }
                     } else if (tile.sampleSize != fullImageSampleSize) {
+                        // kingwei: 如果是非在屏的切片，回收 bitmap
                         tile.visible = false;
                         if (tile.bitmap != null) {
                             tile.bitmap.recycle();
@@ -1357,6 +1361,7 @@ public class SubsamplingScaleImageView extends View {
             sPendingCenter = null;
             pendingScale = null;
             fitToBounds(true);
+            // kingwei todo
             refreshRequiredTiles(true);
         }
 
