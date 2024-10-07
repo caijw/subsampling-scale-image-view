@@ -155,6 +155,8 @@ public class SubsamplingScaleImageView extends View {
     private int fullImageSampleSize;
 
     // Map of zoom level to tile grid
+    // tileMap 更新的时机: 1. 移动事件时 2. 缩放事件完成之后
+    // SubsamplingScaleImageView#refreshRequiredTiles
     private Map<Integer, List<Tile>> tileMap;
 
     // Overlay tile boundaries and other info
@@ -644,6 +646,7 @@ public class SubsamplingScaleImageView extends View {
         int height = parentHeight;
         if (sWidth > 0 && sHeight > 0) {
             if (resizeWidth && resizeHeight) {
+                // 一般情况下会把 bitmap 的长宽当做view的长宽
                 width = sWidth();
                 height = sHeight();
             } else if (resizeHeight) {
@@ -997,6 +1000,7 @@ public class SubsamplingScaleImageView extends View {
         }
 
         // Set scale and translate before draw.
+        // 这个之前在checkReady方法里已经调用过
         preDraw();
 
         // If animating scale, calculate current scale and center with easing equations
@@ -1041,6 +1045,7 @@ public class SubsamplingScaleImageView extends View {
             int sampleSize = Math.min(fullImageSampleSize, calculateInSampleSize(scale));
 
             // First check for missing tiles - if there are any we need the base layer underneath to avoid gaps
+            //如果当前有些tile可见但是bitmap还在加载中（或未加载），则置为true
             boolean hasMissingTiles = false;
             for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
                 if (tileMapEntry.getKey() == sampleSize) {
@@ -1057,6 +1062,8 @@ public class SubsamplingScaleImageView extends View {
             for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
                 if (tileMapEntry.getKey() == sampleSize || hasMissingTiles) {
                     for (Tile tile : tileMapEntry.getValue()) {
+                        // sRect 存储 tile 里的 bitmap 在原图像里所显示的矩形区域
+                        // vRect 由 sRect 根据当前缩放和平移计算后的矩形区域
                         sourceToViewRect(tile.sRect, tile.vRect);
                         if (!tile.loading && tile.bitmap != null) {
                             if (tileBgPaint != null) {
@@ -1065,6 +1072,7 @@ public class SubsamplingScaleImageView extends View {
                             if (matrix == null) { matrix = new Matrix(); }
                             matrix.reset();
                             setMatrixArray(srcArray, 0, 0, tile.bitmap.getWidth(), 0, tile.bitmap.getWidth(), tile.bitmap.getHeight(), 0, tile.bitmap.getHeight());
+                            // 判断显示的方向
                             if (getRequiredRotation() == ORIENTATION_0) {
                                 setMatrixArray(dstArray, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom, tile.vRect.left, tile.vRect.bottom);
                             } else if (getRequiredRotation() == ORIENTATION_90) {
@@ -1311,6 +1319,7 @@ public class SubsamplingScaleImageView extends View {
         // resolution than required, or lower res than required but not the base layer, so the base layer is always present.
         for (Map.Entry<Integer, List<Tile>> tileMapEntry : tileMap.entrySet()) {
             for (Tile tile : tileMapEntry.getValue()) {
+                // 不等于当前采样率
                 if (tile.sampleSize < sampleSize || (tile.sampleSize > sampleSize && tile.sampleSize != fullImageSampleSize)) {
                     tile.visible = false;
                     if (tile.bitmap != null) {
@@ -1318,17 +1327,21 @@ public class SubsamplingScaleImageView extends View {
                         tile.bitmap = null;
                     }
                 }
+                // 等于当前采样率
                 if (tile.sampleSize == sampleSize) {
 
                     if (tileVisible(tile)) {
-                        // kingwei: 如果是在屏的切片，但是 bitmao 还没有加载，需要加载
+                        // 如果当前tile可见
+                        // kingwei: 如果是在屏的切片，但是 bitmap 还没有加载，需要加载
                         tile.visible = true;
                         if (!tile.loading && tile.bitmap == null && load) {
+                            // 加载该tile的bitmap
                             TileLoadTask task = new TileLoadTask(this, decoder, tile);
                             execute(task);
                         }
                     } else if (tile.sampleSize != fullImageSampleSize) {
                         // kingwei: 如果是非在屏的切片，回收 bitmap
+                        // 并非全图展示的情况下（即缩小到最小的时候），如果当前tile不在可见范围内，回收
                         tile.visible = false;
                         if (tile.bitmap != null) {
                             tile.bitmap.recycle();
@@ -1336,6 +1349,7 @@ public class SubsamplingScaleImageView extends View {
                         }
                     }
                 } else if (tile.sampleSize == fullImageSampleSize) {
+                    // 全图可见时
                     tile.visible = true;
                 }
             }
@@ -1357,6 +1371,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Sets scale and translate ready for the next draw.
      */
+    // kingwei: 为下一次 draw 更新 scale 和 translate
     private void preDraw() {
         if (getWidth() == 0 || getHeight() == 0 || sWidth <= 0 || sHeight <= 0) {
             return;
@@ -1678,11 +1693,13 @@ public class SubsamplingScaleImageView extends View {
                     try {
                         if (decoder.isReady()) {
                             // Update tile's file sRect according to rotation
+                            // 处理旋转方向
                             // 如果用户有过操作，需要对 rect 进行调整
                             view.fileSRect(tile.sRect, tile.fileSRect);
                             if (view.sRegion != null) {
                                 tile.fileSRect.offset(view.sRegion.left, view.sRegion.top);
                             }
+                            // fileSRect 即要解码的区域
                             return decoder.decodeRegion(tile.fileSRect, tile.sampleSize);
                         } else {
                             tile.loading = false;
@@ -1828,6 +1845,7 @@ public class SubsamplingScaleImageView extends View {
     /**
      * Called by worker task when full size image bitmap is ready (tiling is disabled).
      */
+    // kingwei: 图片加载完成
     private synchronized void onImageLoaded(Bitmap bitmap, int sOrientation, boolean bitmapIsCached) {
         debug("onImageLoaded");
         // If actual dimensions don't match the declared size, reset everything.
@@ -1851,6 +1869,7 @@ public class SubsamplingScaleImageView extends View {
         boolean ready = checkReady();
         boolean imageLoaded = checkImageLoaded();
         if (ready || imageLoaded) {
+            // kingweiL: 请求重绘 和 重新布局获取 view 大小
             invalidate();
             requestLayout();
         }
@@ -1911,7 +1930,7 @@ public class SubsamplingScaleImageView extends View {
         asyncTask.executeOnExecutor(executor);
     }
     // 在Tile这个类中
-    // sRect、filesRect 负责保存切片的原始大小
+    // sRect 负责保存切片的原始大小， filesRect 要解码的区域
     // vRect则负责保存切片的绘制大小，图片放大后的上下滑动就是通过改变这个 rect 结合 matrix.setPolyToP() 来实现的
     // 所以 sourceToViewRect(tile.sRect, tile.vRect) 这里进行了矩阵的缩放，
     // 其实就是根据之前计算得到的scale对图片原始大小进行缩放。
