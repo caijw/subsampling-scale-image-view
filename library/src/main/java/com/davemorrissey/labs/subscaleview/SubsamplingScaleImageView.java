@@ -68,6 +68,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * <a href="https://github.com/davemorrissey/subsampling-scale-image-view">View project on GitHub</a>
  * </p>
  */
+
+// 大图的切片方面做得更好只将大图切成若干片，在判断是否可见，
+// 如果可见就加载到内存中，否者回收；滑动时只改变矩阵的值进行简单的位移变换，
+// 进一步提升了流畅度，而且根据不同放缩比例选择合适的采样率，进一步减少内存占用。
+    
 @SuppressWarnings("unused")
 public class SubsamplingScaleImageView extends View {
 
@@ -144,6 +149,9 @@ public class SubsamplingScaleImageView extends View {
     private Uri uri;
 
     // Sample size used to display the whole image when fully zoomed out
+    // 决定了图片是否需要用BitmapRegionDecoder进行区域加载。如果他的计算结果等于1，
+    // 则表示这张图的分辨率还不够大，不需要进行切割进行区域加载，
+    // 所以这种情况下是最简单的，直接将图加载进入，放大缩小，移动，都是通过Matrix来实现的
     private int fullImageSampleSize;
 
     // Map of zoom level to tile grid
@@ -1066,6 +1074,10 @@ public class SubsamplingScaleImageView extends View {
                             } else if (getRequiredRotation() == ORIENTATION_270) {
                                 setMatrixArray(dstArray, tile.vRect.left, tile.vRect.bottom, tile.vRect.left, tile.vRect.top, tile.vRect.right, tile.vRect.top, tile.vRect.right, tile.vRect.bottom);
                             }
+                            // matrix，矩阵，很多关于图片的功能都能通过他来做一些十分的变换来实现
+                            // 比如图片的位移，放缩，旋转等等。subsampling scale image view也用了matrix来实现图片的放缩和位移，主要方法是
+                            // matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4); 有两个数组 srArray 和 dstArray
+                            // dstArray 数组决定了图片在屏幕的位置，而大图的移动滑动就是通过他来实现的。
                             matrix.setPolyToPoly(srcArray, 0, dstArray, 0, 4);
                             canvas.drawBitmap(tile.bitmap, matrix, bitmapPaint);
                             if (debug) {
@@ -1493,25 +1505,29 @@ public class SubsamplingScaleImageView extends View {
     private void initialiseTileMap(Point maxTileDimensions) {
         debug("initialiseTileMap maxTileDimensions=%dx%d", maxTileDimensions.x, maxTileDimensions.y);
         this.tileMap = new LinkedHashMap<>();
-        int sampleSize = fullImageSampleSize;
+        int sampleSize = fullImageSampleSize; //  采样率
         int xTiles = 1;
         int yTiles = 1;
-        while (true) {
-            int sTileWidth = sWidth()/xTiles;
+        while (true) {   // 死循环
+            int sTileWidth = sWidth()/xTiles; // 即将被采样的图片大小
             int sTileHeight = sHeight()/yTiles;
-            int subTileWidth = sTileWidth/sampleSize;
+            int subTileWidth = sTileWidth/sampleSize; // 采样率下的图片大小
             int subTileHeight = sTileHeight/sampleSize;
             // kingwei: 切块后的大小太大，需要再一次缩小
+            // maxTileDimensions 本质上就是 cavas 可以支持的最大宽高，这里调整 subtileWidth 的宽度，使得其可以显示在屏幕上，
+            // 这里需要注意的是，一块tile 其实还包含1/4的不可见区域（屏幕外）
             while (subTileWidth + xTiles + 1 > maxTileDimensions.x || (subTileWidth > getWidth() * 1.25 && sampleSize < fullImageSampleSize)) {
                 xTiles += 1;
                 sTileWidth = sWidth()/xTiles;
                 subTileWidth = sTileWidth/sampleSize;
+                // 当采样率为1的时候，由于此时采样后图片依旧远远大于屏幕宽度，因此，会被分割成块数也会更多
             }
             while (subTileHeight + yTiles + 1 > maxTileDimensions.y || (subTileHeight > getHeight() * 1.25 && sampleSize < fullImageSampleSize)) {
                 yTiles += 1;
                 sTileHeight = sHeight()/yTiles;
                 subTileHeight = sTileHeight/sampleSize;
             }
+            // 最终划分的块数
             List<Tile> tileGrid = new ArrayList<>(xTiles * yTiles);
             for (int x = 0; x < xTiles; x++) {
                 for (int y = 0; y < yTiles; y++) {
@@ -1525,6 +1541,7 @@ public class SubsamplingScaleImageView extends View {
                         y == yTiles - 1 ? sHeight() : (y + 1) * sTileHeight
                     );
                     tile.vRect = new Rect(0, 0, 0, 0);
+                    // fileSRect是一个切片的矩阵大小，每一个切片的矩阵大小要确保在对应的缩放级别和采样率下能够显示正常。
                     tile.fileSRect = new Rect(tile.sRect);
                     tileGrid.add(tile);
                 }
@@ -1661,6 +1678,7 @@ public class SubsamplingScaleImageView extends View {
                     try {
                         if (decoder.isReady()) {
                             // Update tile's file sRect according to rotation
+                            // 如果用户有过操作，需要对 rect 进行调整
                             view.fileSRect(tile.sRect, tile.fileSRect);
                             if (view.sRegion != null) {
                                 tile.fileSRect.offset(view.sRegion.left, view.sRegion.top);
@@ -1720,7 +1738,7 @@ public class SubsamplingScaleImageView extends View {
             bitmapIsPreview = false;
             bitmapIsCached = false;
         }
-        invalidate();
+        invalidate(); // 进行重绘
     }
 
     /**
@@ -1892,7 +1910,12 @@ public class SubsamplingScaleImageView extends View {
     private void execute(AsyncTask<Void, Void, ?> asyncTask) {
         asyncTask.executeOnExecutor(executor);
     }
-
+    // 在Tile这个类中
+    // sRect、filesRect 负责保存切片的原始大小
+    // vRect则负责保存切片的绘制大小，图片放大后的上下滑动就是通过改变这个 rect 结合 matrix.setPolyToP() 来实现的
+    // 所以 sourceToViewRect(tile.sRect, tile.vRect) 这里进行了矩阵的缩放，
+    // 其实就是根据之前计算得到的scale对图片原始大小进行缩放。
+    // 接着再通过矩阵变换，将图片大小变换为绘制大小进行绘制。
     private static class Tile {
 
         private Rect sRect;
