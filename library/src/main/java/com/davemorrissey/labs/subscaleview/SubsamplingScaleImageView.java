@@ -626,27 +626,28 @@ public class SubsamplingScaleImageView extends View {
      */
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        int widthSpecMode = MeasureSpec.getMode(widthMeasureSpec);
-        int heightSpecMode = MeasureSpec.getMode(heightMeasureSpec);
-        int parentWidth = MeasureSpec.getSize(widthMeasureSpec);
-        int parentHeight = MeasureSpec.getSize(heightMeasureSpec);
-        boolean resizeWidth = widthSpecMode != MeasureSpec.EXACTLY;
-        boolean resizeHeight = heightSpecMode != MeasureSpec.EXACTLY;
-        int width = parentWidth;
-        int height = parentHeight;
-        if (sWidth > 0 && sHeight > 0) {
-            if (resizeWidth && resizeHeight) {
-                width = sWidth();
-                height = sHeight();
-            } else if (resizeHeight) {
-                height = (int)((((double)sHeight()/(double)sWidth()) * width));
-            } else if (resizeWidth) {
-                width = (int)((((double)sWidth()/(double)sHeight()) * height));
-            }
-        }
-        width = Math.max(width, getSuggestedMinimumWidth());
-        height = Math.max(height, getSuggestedMinimumHeight());
-        setMeasuredDimension(width, height);
+//        int widthSpecMode = MeasureSpec.getMode(widthMeasureSpec);
+//        int heightSpecMode = MeasureSpec.getMode(heightMeasureSpec);
+//        int parentWidth = MeasureSpec.getSize(widthMeasureSpec);
+//        int parentHeight = MeasureSpec.getSize(heightMeasureSpec);
+//        boolean resizeWidth = widthSpecMode != MeasureSpec.EXACTLY;
+//        boolean resizeHeight = heightSpecMode != MeasureSpec.EXACTLY;
+//        int width = parentWidth;
+//        int height = parentHeight;
+//        if (sWidth > 0 && sHeight > 0) {
+//            if (resizeWidth && resizeHeight) {
+//                width = sWidth();
+//                height = sHeight();
+//            } else if (resizeHeight) {
+//                height = (int)((((double)sHeight()/(double)sWidth()) * width));
+//            } else if (resizeWidth) {
+//                width = (int)((((double)sWidth()/(double)sHeight()) * height));
+//            }
+//        }
+//        width = Math.max(width, getSuggestedMinimumWidth());
+//        height = Math.max(height, getSuggestedMinimumHeight());
+//        setMeasuredDimension(width, height);
+        setMeasuredDimension(200, 200);
     }
 
     /**
