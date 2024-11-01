@@ -14,6 +14,13 @@
 
     </RelativeLayout>
 
-    <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView style="@style/mainPanel" android:id="@+id/imageView"/>
+    <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+        android:id="@+id/imageView"
+        style="@style/mainPanel"
+        android:layout_width="1036px"
+        android:layout_height="864px"
+        android:layout_marginTop="66dp"
+        android:layout_marginBottom="134dp"
+        android:visibility="visible" />
 
 </RelativeLayout>
